@@ -44,8 +44,31 @@ void cublas_out_sgemm(int m, int n, int k, const float *OW, float *C, float *OUT
 
 } 
 
-void sigmoid(float *C){
-	
+void feed_forward(unsigned matArow, unsigned matBcol, unsigned matBrow, int len, int OUT_len, float *OW_d, float *C_d, float *Csig_d, float *OUT_d, float *A_d, float *B_d, Timer timer, cudaError_t cuda_ret){
+
+	// Launch kernel using standard sgemm interface ---------------------------
+	printf("Launching kernel..."); fflush(stdout);
+    	startTime(&timer);
+    	//Hidden Layer Calculation
+    	basicSgemm(matArow, matBcol, matBrow, A_d, B_d, C_d);
+    	//cublas_sgemm(matArow, matBcol, matBrow, A_d, B_d, C_d);
+    	cuda_ret = cudaDeviceSynchronize();
+    	basicSigmoid(C_d, Csig_d, len);
+    	cuda_ret = cudaDeviceSynchronize();
+
+    	//Output Layer Calcultion
+    	basicSgemm(matBcol, matBcol, matArow, OW_d, Csig_d, OUT_d);
+    	//cublas_out_sgemm(matBcol, matBcol, matArow, OW_d, C_d, OUT_d);
+    	cuda_ret = cudaDeviceSynchronize();
+    	basicSigmoid(OUT_d, OUT_d,  OUT_len);
+    	cuda_ret = cudaDeviceSynchronize();
+
+    	if(cuda_ret != cudaSuccess) printf("Unable to launch kernel");
+    	stopTime(&timer); printf("%f s\n", elapsedTime(timer));
+}
+
+void back_prop(const float *A_d, float *OW_d, float *OUT_d, float *C_d, int len){
+	basicBackProp(A_d, OW_d, C_d, OUT_d, len); 		
 }
 
 int main (int argc, char *argv[])
@@ -59,9 +82,9 @@ int main (int argc, char *argv[])
     printf("\nSetting up the problem..."); fflush(stdout);
     startTime(&timer);
 
-    float *A_h, *B_h, *C_h, *Bias_h, *OW_h, *OUT_h;
-    float *A_d, *B_d, *C_d, *Bias_d, *OW_d, *OUT_d;
-    size_t A_sz, B_sz, C_sz, Bias_sz, OW_sz, OUT_sz;
+    float *A_h, *B_h, *C_h, *Csig_h, *OW_h, *OUT_h;
+    float *A_d, *B_d, *C_d, *Csig_d, *OW_d, *OUT_d;
+    size_t A_sz, B_sz, C_sz, Csig_sz, OW_sz, OUT_sz;
     int len, OUT_len;
     unsigned matArow, matAcol;
     unsigned matBrow, matBcol;
@@ -91,7 +114,7 @@ int main (int argc, char *argv[])
     A_sz = matArow*matAcol;
     B_sz = matBrow*matBcol;
     C_sz = matArow*matBcol;
-    Bias_sz = C_sz;
+    Csig_sz = C_sz;
     OW_sz = matArow*matBcol;
     OUT_sz = matBcol;
     len = C_sz;
@@ -103,8 +126,8 @@ int main (int argc, char *argv[])
     B_h = (float*) malloc( sizeof(float)*B_sz );
     for (unsigned int i=0; i < B_sz; i++) { B_h[i] = (rand()%100)/100.00; }
 
-    Bias_h = (float*) malloc( sizeof(float)*Bias_sz);
-    for (unsigned int i = 0; i < Bias_sz; i++) { Bias_h[i] = (rand()%100)/100.00; }
+    Csig_h = (float*) malloc( sizeof(float)*Csig_sz);
+    for (unsigned int i = 0; i < Csig_sz; i++) { Csig_h[i] = (rand()%100)/100.00; }
 
     OW_h = (float*) malloc(sizeof(float)*OW_sz);
     for(unsigned int i = 0; i < OW_sz; i++) { OW_h[i] = (rand()%100)/100.00; }
@@ -129,6 +152,7 @@ int main (int argc, char *argv[])
 	cudaMalloc((void**) &C_d, sizeof(float)*C_sz);
 	cudaMalloc((void**) &OW_d, sizeof(float)*OW_sz);
 	cudaMalloc((void**) &OUT_d, sizeof(float)*OUT_sz);
+	cudaMalloc((void**) &Csig_d, sizeof(float)*Csig_sz);
     /*************************************************************************/
 	
     cudaDeviceSynchronize();
@@ -148,25 +172,10 @@ int main (int argc, char *argv[])
     cudaDeviceSynchronize();
     stopTime(&timer); printf("%f s\n", elapsedTime(timer));
 
-    // Launch kernel using standard sgemm interface ---------------------------
-    printf("Launching kernel..."); fflush(stdout);
-    startTime(&timer);
-    //Hidden Layer Calculation
-    basicSgemm(matArow, matBcol, matBrow, A_d, B_d, C_d);
-    //cublas_sgemm(matArow, matBcol, matBrow, A_d, B_d, C_d);
-    cuda_ret = cudaDeviceSynchronize();
-    basicSigmoid(C_d, len);
-    cuda_ret = cudaDeviceSynchronize();
-
-    //Output Layer Calcultion
-    basicSgemm(matBcol, matBcol, matArow, OW_d, C_d, OUT_d);
-    //cublas_out_sgemm(matBcol, matBcol, matArow, OW_d, C_d, OUT_d);
-    cuda_ret = cudaDeviceSynchronize();
-    basicSigmoid(OUT_d, OUT_len);
-    cuda_ret = cudaDeviceSynchronize();
-
-    if(cuda_ret != cudaSuccess) printf("Unable to launch kernel");
-    stopTime(&timer); printf("%f s\n", elapsedTime(timer));
+	// Feed_forward function ----------------------------------------
+	feed_forward(matArow, matBcol, matBrow, len, OUT_len, OW_d, C_d, Csig_d, OUT_d, A_d, B_d, timer, cuda_ret);
+	back_prop(A_d, OW_d, C_d, OUT_d, len);	
+	// --------------------------------------------------------------
 
     // Copy device variables from host ----------------------------------------
     printf("Copying data from device to host..."); fflush(stdout);
@@ -175,6 +184,7 @@ int main (int argc, char *argv[])
     /*************************************************************************/
     //INSERT CODE HERE
 	cudaMemcpy(C_h, C_d, sizeof(float)*C_sz, cudaMemcpyDeviceToHost);
+	cudaMemcpy(Csig_h, Csig_d, sizeof(float)*Csig_sz, cudaMemcpyDeviceToHost);
 	cudaMemcpy(OUT_h, OUT_d, sizeof(float)*OUT_sz, cudaMemcpyDeviceToHost);
     /*************************************************************************/
 
@@ -195,6 +205,7 @@ int main (int argc, char *argv[])
     free(C_h);
     free(OW_h);
     free(OUT_h);
+	free(Csig_h);	
 
     /*************************************************************************/
     //INSERT CODE HERE
@@ -203,6 +214,7 @@ int main (int argc, char *argv[])
 	cudaFree(C_d);    
 	cudaFree(OW_d);
 	cudaFree(OUT_d);
+	cudaFree(Csig_d);
     /*************************************************************************/
 
     return 0;

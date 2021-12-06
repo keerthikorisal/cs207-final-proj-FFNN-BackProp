@@ -88,21 +88,52 @@ __device__ __forceinline__ float sigmoid (float a){
 	return 1.0 / (1.0 + exp (-a));
 }
 
-__global__ void sigmoid_kernel (float *C, int len){
+__global__ void sigmoid_kernel (const float *C, float *Csig, int len){
 	int stride = gridDim.x * blockDim.x;
     	int tid = blockDim.x * blockIdx.x + threadIdx.x;
 	for(int i = tid; i < len; i += stride){
-		C[i] = sigmoid (C[i]);
+		Csig[i] = sigmoid (C[i]);
 	}
 
 }
 
-void basicSigmoid(float *C, int len){
+void basicSigmoid(const float *C, float  *Csig, int len){
 	dim3 dimBlock(256);
 	int threadBlocks = (len + (dimBlock.x - 1)) / dimBlock.x;
 	if (threadBlocks > 65520) threadBlocks = 65520;
 	dim3 dimGrid(threadBlocks);
 
-	sigmoid_kernel<<<dimGrid,dimBlock>>>(C, len);
+	sigmoid_kernel<<<dimGrid,dimBlock>>>(C, Csig, len);
+
+}
+
+
+__global__ void back_prop_kernel(const float *Target, float *OW, float *OUT, float *C, int backprop_len){
+
+	int stride = gridDim.x * blockDim.x;
+        int tid = blockDim.x * blockIdx.x + threadIdx.x;
+	float *new_w;
+	int m, n, k;
+        m = n = k = 2;
+       // basicSgemm(m, n, k, OW, C, OUT);
+
+	if(backprop_len < 0){
+		int m, n, k;
+		m = n = k = 2;
+		//basicSgemm(m, n, k, OW, C, OUT);
+		for (int i = tid; i < backprop_len; i += stride){
+                	new_w[i] = 1 ;
+       		}
+	}
+
+}
+
+void basicBackProp(const float *Target, float *OW, float *OUT, float *C, int backprop_len){
+	dim3 dimBlock(256);
+	int threadBlocks = (backprop_len + (dimBlock.x - 1)) / dimBlock.x;
+	if (threadBlocks > 65520) threadBlocks = 65520;
+        dim3 dimGrid(threadBlocks);
+
+        back_prop_kernel<<<dimGrid,dimBlock>>>(Target, OW, OUT, C, backprop_len);
 
 }

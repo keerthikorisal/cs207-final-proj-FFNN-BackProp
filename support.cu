@@ -4,7 +4,7 @@
 
 #include "support.h"
 
-void verify(float *A, float *B, float *C, float *OUT, unsigned int m, unsigned int k,
+void verify(float *A, float *B, float *C, float *OUT, float *B_new, unsigned int m, unsigned int k,
   unsigned int n) {
 
   const float relativeTolerance = 1e-6;
@@ -17,16 +17,18 @@ void verify(float *A, float *B, float *C, float *OUT, unsigned int m, unsigned i
     for(int col = 0; col < n; ++col) {
       float sum = 0;
       for(unsigned int i = 0; i < k; ++i) {
-	//printf("\n %f ", A[row*k + i]);
+	printf("\nA/B_new %f/%f ", A[row*k + i], B_new[row*k + i]);
         //printf("\n %f ", B[i*n + col]);
 
 	sum += A[row*k + i]*B[i*n + col];
+	//printf("\nB, %f ", B[i*n + col]);
       }
       count++;
       float relativeError = (sum - C[row*n + col])/sum;
 	//printf("\n %f/%f/%f ", A[row*n + col], row, col);
 	//printf("\n %f/%f/%f ", B[row*n + col], row, col);
       printf("\n0, %f/%f ", sum, C[row*n + col]);
+	//printf("\n0, %f ", B[*n + col]);
 //	printf("\n1, %f/%f ", sum, C[1], "1");
 //	printf("\n2, %f/%f ", sum, C[2], "2");
 //	printf("\n3, %f/%f ", sum, C[3], "3");

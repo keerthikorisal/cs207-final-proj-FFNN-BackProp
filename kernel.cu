@@ -108,14 +108,15 @@ void basicSigmoid(const float *C, float  *Csig, int len){
 }
 
 
-__global__ void mysub(int m, int n, int k, const float *A, const float *B, float* C){
+__global__ void mysub(int m, const float *A, const float *B, float* C){
 
 	// INSERT KERNEL CODE HERE
         //__shared__ float ds_A[TILE_SIZE][TILE_SIZE];
         //__shared__ float ds_B[TILE_SIZE][TILE_SIZE];
 
-       /* int bx = blockIdx.x;
+        int bx = blockIdx.x;
         int by = blockIdx.y;
+	/*
         int tx = threadIdx.x;
         int ty = threadIdx.y;
 
@@ -136,9 +137,12 @@ __global__ void mysub(int m, int n, int k, const float *A, const float *B, float
                         C[row * n + col] = pvalue;
                 }
 
-        }/
+        }*/
 	int id = gridDim.x * by + bx;
-	C[id] = A[id] - B[id];*/
+	for(int i = 0; i < m; i ++){
+		C[i] = A[i] - B[i];
+	}
+	/*
 	int colID = threadIdx.x + blockIdx.x * blockDim.x;	// Row address
 
 	if(colID < n) {
@@ -146,18 +150,17 @@ __global__ void mysub(int m, int n, int k, const float *A, const float *B, float
 			//elemID = colID + rowID * WIDTH; 
 			C[colID + i*n] = A[colID + i*n] + B[colID + i*n];
 		}
-	}	
-
+	}*/
 }
 
-void basicSub(int m, int n, int k, const float *A, const float *B, float* C){
+void basicSub(int m, const float *A, const float *B, float* C){
 	// Initialize thread block and kernel grid dimensions ---------------------
 
     const unsigned int BLOCK_SIZE = TILE_SIZE;
 
     /*************************************************************************/
     //INSERT CODE HERE
-        dim3 dimGrid((n+1)/BLOCK_SIZE + 1, (m + 1) / BLOCK_SIZE, 1);
+        dim3 dimGrid((m-1)/BLOCK_SIZE + 1, (m - 1) / BLOCK_SIZE + 1, 1);
         dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE, 1);
 
     /*************************************************************************/
@@ -166,7 +169,7 @@ void basicSub(int m, int n, int k, const float *A, const float *B, float* C){
 
     /*************************************************************************/
     //INSERT CODE HERE
-        mysub <<< dimGrid, dimBlock >>> (m, n, k, A, B, C);
+        mysub <<< dimGrid, dimBlock >>> (m, A, B, C);
     /*************************************************************************/
 
 

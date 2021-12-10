@@ -42,6 +42,28 @@ void cublas_out_sgemm(int m, int n, int k, const float *OW, float *C, float *OUT
         // Destroy the handle
         cublasDestroy(handle);
 
+}
+
+void cublas_transpose(int m, int n, const float *OW_d, float *OW_t_d){
+	float alpha=1;
+	const float *A = OW_d;
+        int lda=n;
+
+        float beta=0;
+	float *B = NULL;
+        int ldb=n;
+
+        float *C=OW_t_d;
+        int ldc=m;
+
+        cublasHandle_t handle;
+        cublasCreate(&handle);
+        cublasStatus_t success=cublasSgeam( handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, &alpha, A, lda, &beta, B, ldb, C, ldc);
+	OW_t_d = C;
+        if ( success != CUBLAS_STATUS_SUCCESS)
+           // cout << "\33[31mError: " << success << "\33[0m\n";
+        cublasDestroy(handle);
+
 } 
 
 void feed_forward(unsigned matArow, unsigned matBcol, unsigned matBrow, int len, int OUT_len, float *OW_d, float *C_d, float *Csig_d, float *OUT_d, float *A_d, float *B_d, Timer timer, cudaError_t cuda_ret){
@@ -75,8 +97,9 @@ void back_prop_output(const float *OW_d, float *C_d, float *OW_new_d, float *upd
 	basicSgemm(matBrow, matBcol, matArow, C_d, update_weight_d, OW_new_d);
 	cuda_ret = cudaDeviceSynchronize();
 	//basicTrans(matBrow, matBcol, OW_new_d, OW_t_d);
+	//cubals_transpose(matBcol, matBrow, OW_d, OW_t_d);
 	cuda_ret = cudaDeviceSynchronize();
-	basicSub(matBrow, matBcol, matBcol, OW_d, OW_t_d, OW_t_d);
+	basicSub(matBrow*matArow, OW_d, OW_new_d, OW_new_d);
 	cuda_ret = cudaDeviceSynchronize();
 	//if(cuda_ret != cudaSuccess) printf("Unable to launch kernel");
         //stopTime(&timer); printf("%f s\n", elapsedTime(timer));
@@ -86,16 +109,17 @@ void back_prop_hidden(float *B_d, float *update_weight_d, float *A_d, float *OW_
 	unsigned matArow, matBrow, matBcol;
         matArow = 4; matBrow = 5; matBcol = 1;
         cuda_ret = cudaDeviceSynchronize();
-	basicSgemm(matArow, matBcol, matBcol, A_d, update_weight_d, B_temp_d);
+	basicSgemm(matArow, matBcol, matBcol, B_d, update_weight_d, B_temp_d);
 	cuda_ret = cudaDeviceSynchronize();
 	//transpose
 	//basicTrans(matBrow, matBcol, OW_d, OW_t_d);
+	cublas_transpose(matBcol, matBrow, OW_d, OW_t_d);
 	//printf("\ntrans: %f/%f", OW_h, OW_t_h); 
-	//cuda_ret = cudaDeviceSynchronize();
-	basicSgemm(matArow, matBrow, matBcol, B_temp_d, OW_d, B_new_d);
+	cuda_ret = cudaDeviceSynchronize();
+	basicSgemm(matArow, matBrow, matBcol, B_temp_d, OW_t_d, B_new_d);
         cuda_ret = cudaDeviceSynchronize();
-	basicSub(matBrow, matArow, matArow, B_d, B_new_d, B_new_d);
-        cuda_ret = cudaDeviceSynchronize();
+	//basicSub(matBrow*matArow, A_d, B_new_d, B_new_d);
+        //cuda_ret = cudaDeviceSynchronize();
 } 
 
 int main (int argc, char *argv[])
@@ -138,25 +162,25 @@ int main (int argc, char *argv[])
         exit(0);
     }
    
-    A_sz = matArow*matAcol;
-    B_sz = matBrow*matBcol;
-    C_sz = matArow*matBcol;
-    Csig_sz = C_sz;
-    OW_sz = matArow*matBcol;
-    OUT_sz = matBcol;
-    len = C_sz;
+    A_sz = matArow*matAcol; //weights (5x4)
+    B_sz = matBrow*matBcol; //inputs (4x1)
+    C_sz = matArow*matBcol; //hidden output (5x1)
+    Csig_sz = C_sz; // sigmoid hidden
+    OW_sz = matArow*matBcol; //output weights (5x1)
+    OUT_sz = matBcol; //output 
+    len = C_sz; 
     OUT_len = OUT_sz;
-	OW_new_sz = OW_sz;
+	OW_new_sz = OW_sz; //BP output weights (4x1)
 	update_sz = OUT_sz;
 	OW_t_sz = OW_sz;
-	B_new_sz = B_sz;
-	B_temp_sz = A_sz;
+	B_new_sz = A_sz;
+	B_temp_sz = B_sz;
 
     A_h = (float*) malloc( sizeof(float)*A_sz );
     for (unsigned int i=0; i < A_sz; i++) { A_h[i] = (rand()%100)/100.00; }
 
     B_h = (float*) malloc( sizeof(float)*B_sz );
-    for (unsigned int i=0; i < B_sz; i++) { B_h[i] = (rand()%100)/100.00; }
+    for (unsigned int i=0; i < B_sz; i++) { B_h[i] = (rand()%100)/100.00; printf("\nBlah: %f", B_h[i]); }
 
     Csig_h = (float*) malloc( sizeof(float)*Csig_sz);
     for (unsigned int i = 0; i < Csig_sz; i++) { Csig_h[i] = (rand()%100)/100.00; }
@@ -266,16 +290,19 @@ int main (int argc, char *argv[])
 	cudaMemcpy(OW_t_h, OW_t_d, sizeof(float)*OW_t_sz, cudaMemcpyDeviceToHost);
 	cudaMemcpy(B_new_h, B_new_d, sizeof(float)*B_new_sz, cudaMemcpyDeviceToHost);
 	
-	 printf("\nOW_t: %f/%f/%f/%f/%f", OW_t_h[0],OW_t_h[1],OW_t_h[2],OW_t_h[3],OW_t_h[4]);
+	 //printf("\nOW_t: %f/%f/%f/%f/%f", OW_t_h[0],OW_t_h[1],OW_t_h[2],OW_t_h[3],OW_t_h[4]);
 	printf("\nOW_new: %f/%f/%f/%f/%f", OW_new_h[0],OW_new_h[1],OW_new_h[2],OW_new_h[3],OW_new_h[4]);
 	printf("\nOW_curr: %f/%f/%f/%f/%f", OW_h[0],OW_h[1],OW_h[2],OW_h[3],OW_h[4]);
+	for(int i = 0; i < 10; i++){
+		printf("\nWOW/OW_t %f/%f",OW_h[i], OW_t_h[i]);
+	}
 	printf("\nNew_b: %f/%f", B_h[1], B_new_h[1]);
 
     // Verify correctness -----------------------------------------------------
 
     printf("Verifying results..."); fflush(stdout);
 	std::cout << C_sz;
-    verify(A_h, B_h, C_h, OUT_h, matArow, matAcol, matBcol);
+    verify(A_h, B_h, C_h, OUT_h, B_new_h, matArow, matAcol, matBcol);
 
 
     // Free memory ------------------------------------------------------------

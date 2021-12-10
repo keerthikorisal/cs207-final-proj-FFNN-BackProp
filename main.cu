@@ -51,6 +51,7 @@ void feed_forward(unsigned matArow, unsigned matBcol, unsigned matBrow, int len,
     	startTime(&timer);
     	//Hidden Layer Calculation
     	basicSgemm(matArow, matBcol, matBrow, A_d, B_d, C_d);
+	printf("\nFUck");
     	//cublas_sgemm(matArow, matBcol, matBrow, A_d, B_d, C_d);
     	cuda_ret = cudaDeviceSynchronize();
     	basicSigmoid(C_d, Csig_d, len);
@@ -62,14 +63,40 @@ void feed_forward(unsigned matArow, unsigned matBcol, unsigned matBrow, int len,
     	cuda_ret = cudaDeviceSynchronize();
     	basicSigmoid(OUT_d, OUT_d,  OUT_len);
     	cuda_ret = cudaDeviceSynchronize();
-
+	printf("\nMFFFF");
     	if(cuda_ret != cudaSuccess) printf("Unable to launch kernel");
     	stopTime(&timer); printf("%f s\n", elapsedTime(timer));
 }
 
-void back_prop(const float *A_d, float *OW_d, float *OUT_d, float *C_d, int len){
-	basicBackProp(A_d, OW_d, C_d, OUT_d, len); 		
+void back_prop_output(const float *OW_d, float *C_d, float *OW_new_d, float *update_weight_d, float *OW_t_d,  cudaError_t cuda_ret){
+	unsigned matArow, matBrow, matBcol;
+	matArow = 1; matBrow = 5; matBcol = 1;
+	cuda_ret = cudaDeviceSynchronize();
+	basicSgemm(matBrow, matBcol, matArow, C_d, update_weight_d, OW_new_d);
+	cuda_ret = cudaDeviceSynchronize();
+	//basicTrans(matBrow, matBcol, OW_new_d, OW_t_d);
+	cuda_ret = cudaDeviceSynchronize();
+	basicSub(matBrow, matBcol, matBcol, OW_d, OW_t_d, OW_t_d);
+	cuda_ret = cudaDeviceSynchronize();
+	//if(cuda_ret != cudaSuccess) printf("Unable to launch kernel");
+        //stopTime(&timer); printf("%f s\n", elapsedTime(timer));
 }
+
+void back_prop_hidden(float *B_d, float *update_weight_d, float *A_d, float *OW_d, float *OW_t_d, float *B_new_d, float *B_temp_d, cudaError_t cuda_ret){
+	unsigned matArow, matBrow, matBcol;
+        matArow = 4; matBrow = 5; matBcol = 1;
+        cuda_ret = cudaDeviceSynchronize();
+	basicSgemm(matArow, matBcol, matBcol, A_d, update_weight_d, B_temp_d);
+	cuda_ret = cudaDeviceSynchronize();
+	//transpose
+	//basicTrans(matBrow, matBcol, OW_d, OW_t_d);
+	//printf("\ntrans: %f/%f", OW_h, OW_t_h); 
+	//cuda_ret = cudaDeviceSynchronize();
+	basicSgemm(matArow, matBrow, matBcol, B_temp_d, OW_d, B_new_d);
+        cuda_ret = cudaDeviceSynchronize();
+	basicSub(matBrow, matArow, matArow, B_d, B_new_d, B_new_d);
+        cuda_ret = cudaDeviceSynchronize();
+} 
 
 int main (int argc, char *argv[])
 {
@@ -82,9 +109,9 @@ int main (int argc, char *argv[])
     printf("\nSetting up the problem..."); fflush(stdout);
     startTime(&timer);
 
-    float *A_h, *B_h, *C_h, *Csig_h, *OW_h, *OUT_h;
-    float *A_d, *B_d, *C_d, *Csig_d, *OW_d, *OUT_d;
-    size_t A_sz, B_sz, C_sz, Csig_sz, OW_sz, OUT_sz;
+    float *A_h, *B_h, *C_h, *Csig_h, *OW_h, *OUT_h, *OW_new_h, *update_weight_h, *OW_t_h, *B_new_h, *B_temp_h;
+    float *A_d, *B_d, *C_d, *Csig_d, *OW_d, *OUT_d, *OW_new_d, *update_weight_d, *OW_t_d, *B_new_d, *B_temp_d;
+    size_t A_sz, B_sz, C_sz, Csig_sz, OW_sz, OUT_sz, OW_new_sz, update_sz, OW_t_sz, B_new_sz, B_temp_sz;
     int len, OUT_len;
     unsigned matArow, matAcol;
     unsigned matBrow, matBcol;
@@ -119,6 +146,11 @@ int main (int argc, char *argv[])
     OUT_sz = matBcol;
     len = C_sz;
     OUT_len = OUT_sz;
+	OW_new_sz = OW_sz;
+	update_sz = OUT_sz;
+	OW_t_sz = OW_sz;
+	B_new_sz = B_sz;
+	B_temp_sz = A_sz;
 
     A_h = (float*) malloc( sizeof(float)*A_sz );
     for (unsigned int i=0; i < A_sz; i++) { A_h[i] = (rand()%100)/100.00; }
@@ -135,6 +167,16 @@ int main (int argc, char *argv[])
     C_h = (float*) malloc( sizeof(float)*C_sz );
 
     OUT_h = (float*) malloc(sizeof(float)*OUT_sz);
+
+	OW_new_h = (float*) malloc(sizeof(float)*OW_new_sz);
+
+	update_weight_h = (float*) malloc(sizeof(float)*update_sz);
+	
+	OW_t_h = (float*) malloc(sizeof(float)*OW_t_sz);
+	
+	B_new_h = (float*) malloc( sizeof(float)*B_new_sz);
+
+	B_temp_h = (float*) malloc( sizeof(float)*B_temp_sz );
 
     stopTime(&timer); printf("%f s\n", elapsedTime(timer));
     printf("    A: %u x %u\n    B: %u x %u\n    C: %u x %u\n", matArow, matAcol,
@@ -153,6 +195,11 @@ int main (int argc, char *argv[])
 	cudaMalloc((void**) &OW_d, sizeof(float)*OW_sz);
 	cudaMalloc((void**) &OUT_d, sizeof(float)*OUT_sz);
 	cudaMalloc((void**) &Csig_d, sizeof(float)*Csig_sz);
+	cudaMalloc((void**) &OW_new_d, sizeof(float)*OW_new_sz);
+	cudaMalloc((void**) &update_weight_d, sizeof(float)*update_sz);
+	cudaMalloc((void**) &OW_t_d, sizeof(float)*OW_t_sz);
+	cudaMalloc((void**) &B_new_d, sizeof(float)*B_new_sz);
+	cudaMalloc((void**) &B_temp_d, sizeof(float)*B_temp_sz);
     /*************************************************************************/
 	
     cudaDeviceSynchronize();
@@ -174,8 +221,18 @@ int main (int argc, char *argv[])
 
 	// Feed_forward function ----------------------------------------
 	feed_forward(matArow, matBcol, matBrow, len, OUT_len, OW_d, C_d, Csig_d, OUT_d, A_d, B_d, timer, cuda_ret);
-	back_prop(A_d, OW_d, C_d, OUT_d, len);	
-	// --------------------------------------------------------------
+
+	/*/ back_prop_output
+	//printf("\nOUT_D: %f", OUT_d[0]);
+	update_weight_h[0] = (OUT_d[0] - 1.0f)*0.05f;
+	cudaMemcpy(update_weight_d, update_weight_h, sizeof(float)*update_sz, cudaMemcpyHostToDevice); 
+	//= (OUT_d[0] - 1.0f)*0.05f;
+	//printf("\nupdate: %f", update_weight_d[0]);
+	//const float activation = 0.05;
+	back_prop_output(OW_d, C_d, OW_new_d, update_weight_d, OW_new_sz, cuda_ret);
+	printf("\nOW_new: %f", OW_new_d[0]);
+	printf("\nOW_orig: %f", OW_d[0]);
+	// --------------------------------------------------------------*/
 
     // Copy device variables from host ----------------------------------------
     printf("Copying data from device to host..."); fflush(stdout);
@@ -186,10 +243,33 @@ int main (int argc, char *argv[])
 	cudaMemcpy(C_h, C_d, sizeof(float)*C_sz, cudaMemcpyDeviceToHost);
 	cudaMemcpy(Csig_h, Csig_d, sizeof(float)*Csig_sz, cudaMemcpyDeviceToHost);
 	cudaMemcpy(OUT_h, OUT_d, sizeof(float)*OUT_sz, cudaMemcpyDeviceToHost);
+	//cudaMemcpy(OW_new_h, OW_new_d, sizeof(float)*OW_new_sz, cudaMemcpyDeviceToHost);
     /*************************************************************************/
 
     cudaDeviceSynchronize();
     stopTime(&timer); printf("%f s\n", elapsedTime(timer));
+	
+	// back_prop_output
+        //printf("\nOUT_D: %f", OUT_d[0]);
+        update_weight_h[0] = (OUT_h[0] - 1.0f)*0.05f;
+        cudaMemcpy(update_weight_d, update_weight_h, sizeof(float)*update_sz, cudaMemcpyHostToDevice);
+        //= (OUT_d[0] - 1.0f)*0.05f;
+        printf("\nupdate: %f", update_weight_h[0]);
+        //const float activation = 0.05;
+        back_prop_output(OW_d, C_d, OW_new_d, update_weight_d, OW_t_d, cuda_ret);
+        //printf("\nOW_new: %f", OW_new_h[0]);
+        printf("\nOW_orig: %f", OW_h[1]);
+	back_prop_hidden(B_d, update_weight_d, A_d, OW_d, OW_t_d, B_new_d, B_temp_d, cuda_ret);
+
+	cudaMemcpy(OW_new_h, OW_new_d, sizeof(float)*OW_new_sz, cudaMemcpyDeviceToHost);
+	cudaMemcpy(OW_h, OW_d, sizeof(float)*OW_sz, cudaMemcpyDeviceToHost);
+	cudaMemcpy(OW_t_h, OW_t_d, sizeof(float)*OW_t_sz, cudaMemcpyDeviceToHost);
+	cudaMemcpy(B_new_h, B_new_d, sizeof(float)*B_new_sz, cudaMemcpyDeviceToHost);
+	
+	 printf("\nOW_t: %f/%f/%f/%f/%f", OW_t_h[0],OW_t_h[1],OW_t_h[2],OW_t_h[3],OW_t_h[4]);
+	printf("\nOW_new: %f/%f/%f/%f/%f", OW_new_h[0],OW_new_h[1],OW_new_h[2],OW_new_h[3],OW_new_h[4]);
+	printf("\nOW_curr: %f/%f/%f/%f/%f", OW_h[0],OW_h[1],OW_h[2],OW_h[3],OW_h[4]);
+	printf("\nNew_b: %f/%f", B_h[1], B_new_h[1]);
 
     // Verify correctness -----------------------------------------------------
 
@@ -206,6 +286,11 @@ int main (int argc, char *argv[])
     free(OW_h);
     free(OUT_h);
 	free(Csig_h);	
+	free(OW_new_h);
+	free(update_weight_h);
+	free(B_new_h);
+	free(B_temp_h);
+	free(OW_t_h);
 
     /*************************************************************************/
     //INSERT CODE HERE
@@ -215,6 +300,11 @@ int main (int argc, char *argv[])
 	cudaFree(OW_d);
 	cudaFree(OUT_d);
 	cudaFree(Csig_d);
+	cudaFree(OW_new_d);
+	cudaFree(update_weight_d);
+	cudaFree(B_new_d);
+	cudaFree(B_temp_d);
+	cudaFree(OW_t_d);
     /*************************************************************************/
 
     return 0;

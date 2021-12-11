@@ -4,11 +4,12 @@
 #include "support.h"
 #include <iostream>
 
+//Forward propagation function
 void feed_forward(unsigned matArow, unsigned matBcol, unsigned matBrow, int len, int OUT_len, float *OW_d, float *C_d, float *Csig_d, float *OUT_d, float *A_d, float *B_d, cudaError_t cuda_ret){
     	cuda_ret = cudaDeviceSynchronize();
-	basicSgemm(matArow, matBcol, matBrow, A_d, B_d, C_d);
+	basicSgemm(matArow, matBcol, matBrow, A_d, B_d, C_d); //matrix multiply
     	cuda_ret = cudaDeviceSynchronize();
-    	basicSigmoid(C_d, Csig_d, len);
+    	basicSigmoid(C_d, Csig_d, len);  //apply sigmoid
     	cuda_ret = cudaDeviceSynchronize();
     	basicSgemm(matBcol, matBcol, matArow, OW_d, Csig_d, OUT_d);
     	cuda_ret = cudaDeviceSynchronize();
@@ -16,17 +17,18 @@ void feed_forward(unsigned matArow, unsigned matBcol, unsigned matBrow, int len,
     	cuda_ret = cudaDeviceSynchronize();
 }
 
+//Backpropagation from output to hidden
 void back_prop_output(float *OW_d, float *C_d, float *OW_new_d, float *update_weight_d, float *OW_t_d,  cudaError_t cuda_ret){
 	unsigned matArow, matBrow, matBcol;
 	matArow = 1; matBrow = 5; matBcol = 1;
 	cuda_ret = cudaDeviceSynchronize();
 	basicSgemm(matBrow, matBcol, matArow, C_d, update_weight_d, OW_new_d);
 	cuda_ret = cudaDeviceSynchronize();
-	cuda_ret = cudaDeviceSynchronize();
-	basicSub(matBcol, matBrow, matArow, OW_d, OW_new_d, OW_d);
+	basicSub(matBcol, matBrow, matArow, OW_d, OW_new_d, OW_d); //subtract
 	cuda_ret = cudaDeviceSynchronize();
 }
 
+//Backpropagation from hidden to input
 void back_prop_hidden(float *B_d, float *update_weight_d, float *A_d, float *OW_d, float *OW_t_d, float *B_new_d, float *B_temp_d, cudaError_t cuda_ret){
 	unsigned matArow, matBrow, matBcol;
         matArow = 4; matBrow = 5; matBcol = 1;
@@ -39,10 +41,8 @@ void back_prop_hidden(float *B_d, float *update_weight_d, float *A_d, float *OW_
 	cuda_ret = cudaDeviceSynchronize();
 }
  
-
 int main (int argc, char *argv[])
 {
-
     Timer timer;
     cudaError_t cuda_ret;
 
@@ -96,7 +96,7 @@ int main (int argc, char *argv[])
     B_temp_sz = B_sz;
     inputs_sz = 160;
     target_sz = 40;
-	tst_sz = 40;
+    tst_sz = 40;
 	
 	tst_input_h = (float*) malloc(sizeof(float)*tst_sz);
 	float test_inputs_h[] = {0.10895f,0.10965f,0.09549f,0.1043f,0.10474f,0.147f,0.10231f,0.14435f,0.14499f,0.1685f,0.14211f,0.14456f,0.14505f,0.169927f,0.13858f,0.16251f,0.162125f,0.17456f,0.15291f,0.16944f,0.16995f,0.1912f,0.16271f,0.17877f,0.1808f,0.20789f,0.177f,0.20681f,0.20935f,0.21867f,0.19123f,0.20071f,0.19931f,0.2003f,0.18058f,0.1935f,0.1935f,0.24927f,0.1935f,0.2458f};
@@ -104,7 +104,6 @@ int main (int argc, char *argv[])
 	for(unsigned int i = 0; i < tst_sz; i++){
                 tst_input_h[i] = test_inputs_h[i];
         }
-
 
     inputs_h = (float*) malloc(sizeof(float)*inputs_sz);
 	float input_h[] = {0.23409f,0.2566f,0.233265f,0.24486f,0.24613f,0.281717f,0.23872f,0.28068f,0.28068f,0.28522f,0.25868f,0.28102f,0.28416f,0.29276f,0.17601f,0.21083f,0.2123f,0.222f,0.13331f,0.16343f,0.1726f,0.17468f,0.12446f,0.1335f,0.1335f,0.16088f,0.127693f,0.14375f,0.1445f,0.16528f,0.14258f,0.15426f,0.15627f,0.185f,0.1448f,0.17956f,0.18326f,0.19347f,0.1733f,0.181f,0.18311f,0.18487f,0.13539f,0.13546f,0.13591f,0.16537f,0.1326f,0.16423f,0.17257f,0.17889f,0.155f,0.16872f,0.16914f,0.17345f,0.147394f,0.16751f,0.16751f,0.1884f,0.163252f,0.17407f,0.175f,0.2089f,0.17013f,0.20102f,0.1996f,0.22141f,0.198593f,0.21674f,0.21646f,0.24181f,0.20037f,0.2353f,0.2353f,0.2595f,0.23127f,0.23643f,0.2357f,0.31632f,0.23545f,0.27007f,0.2769f,0.28489f,0.180681f,0.2636f,0.25565f,0.3042f,0.23839f,0.29228f,0.28435f,0.36727f,0.280843f,0.35502f,0.35333f,0.3857f,0.34632f,0.37991f,0.38083f,0.43169f,0.37652f,0.42459f,0.4293f,0.543f,0.42861f,0.53498f,0.5392f,0.58907f,0.46817f,0.54122f,0.55032f,0.57394f,0.492f,0.50136f,0.50631f,0.58766f,0.4958f,0.53606f,0.53969f,0.54925f,0.510527f,0.5222f,0.5222f,0.559974f,0.50344f,0.51959f,0.522134f,0.6149f,0.51611f,0.54858f,0.555f,0.557f,0.46266f,0.53393f,0.54289f,0.648566f,0.54045f,0.60038f,0.605f,0.651099f,0.53836f,0.64978f,0.6508f,0.8065f,0.63613f,0.8001f,0.805f,0.82021f,0.178655f,0.19499f,0.197f,0.23043f,0.18762f,0.22385f,0.22485f,0.22986f,0.20467f,0.20716f,0.2075f,0.25709f,0.19555f,0.25567f};
@@ -115,7 +114,6 @@ int main (int argc, char *argv[])
 
 	targets_h = (float*) malloc(sizeof(float)*target_sz);
 	float target_h[] = {0.28068f,0.28102f,0.21083f,0.16343f,0.1335f,0.14375f,0.15426f,0.17956f,0.181f,0.13546f,0.16423f,0.16872f,0.16751f,0.17407f,0.20102f,0.21674f,0.2353f,0.23643f,0.27007f,0.2636f,0.29228f,0.35502f,0.37991f,0.42459f,0.53498f,0.54122f,0.50136f,0.53606f,0.5222f,0.51959f,0.54858f,0.53393f,0.60038f,0.64978f,0.8001f,0.19499f,0.22385f,0.20716f,0.25567f,0.32676f};
-
 
     A_h = (float*) malloc( sizeof(float)*A_sz );
     for (unsigned int i=0; i < A_sz; i++) { A_h[i] = (rand()%100)/100.00; }
@@ -175,33 +173,35 @@ int main (int argc, char *argv[])
     stopTime(&timer); printf("%f s\n", elapsedTime(timer));
 
     stopTime(&timer); printf("%f s\n", elapsedTime(timer));
-	
+
+   //FFNN training
    for (int j = 0; j < target_sz; j++){
 	for (unsigned int i = 0; i < 4; i++) {
 		 B_h[i] = inputs_h[i+j*B_sz]; 
 	}
 	targets_h[j] = target_h[j];
 	cudaMemcpy(B_d, B_h, sizeof(float)*B_sz, cudaMemcpyHostToDevice);
-	printf("\n Iter: %i", j);
-    for(int i = 0; i < 1000; i++) {
-	feed_forward(matArow, matBcol, matBrow, len, OUT_len, OW_d, C_d, Csig_d, OUT_d, A_d, B_d, cuda_ret);
+	printf("\n Iter: %i", j); //print input set #
+    	
+	for(int i = 0; i < 1000; i++) {
+		feed_forward(matArow, matBcol, matBrow, len, OUT_len, OW_d, C_d, Csig_d, OUT_d, A_d, B_d, cuda_ret); //forward propagation call
 
-	cudaMemcpy(C_h, C_d, sizeof(float)*C_sz, cudaMemcpyDeviceToHost);
-    	cudaMemcpy(Csig_h, Csig_d, sizeof(float)*Csig_sz, cudaMemcpyDeviceToHost);
-    	cudaMemcpy(OUT_h, OUT_d, sizeof(float)*OUT_sz, cudaMemcpyDeviceToHost);
+		cudaMemcpy(C_h, C_d, sizeof(float)*C_sz, cudaMemcpyDeviceToHost);
+    		cudaMemcpy(Csig_h, Csig_d, sizeof(float)*Csig_sz, cudaMemcpyDeviceToHost);
+    		cudaMemcpy(OUT_h, OUT_d, sizeof(float)*OUT_sz, cudaMemcpyDeviceToHost);
   
-	update_weight_h[0] = (OUT_h[0] - targets_h[j]) * 0.05f;
-	cudaMemcpy(update_weight_d, update_weight_h, sizeof(float)*update_sz, cudaMemcpyHostToDevice);
+		update_weight_h[0] = (OUT_h[0] - targets_h[j]) * 0.05f; //error multiplied by learning rate
+		cudaMemcpy(update_weight_d, update_weight_h, sizeof(float)*update_sz, cudaMemcpyHostToDevice);
 	
- 	back_prop_output(OW_d, C_d, OW_new_d, update_weight_d, OW_t_d, cuda_ret);
-	back_prop_hidden(B_d, update_weight_d, A_d, OW_d, OW_t_d, B_new_d, B_temp_d, cuda_ret);
+ 		back_prop_output(OW_d, C_d, OW_new_d, update_weight_d, OW_t_d, cuda_ret); //backpropagation between output and hidden
+		back_prop_hidden(B_d, update_weight_d, A_d, OW_d, OW_t_d, B_new_d, B_temp_d, cuda_ret); //backpropagation between hidden and input
 	
-	cudaMemcpy(OW_h, OW_d, sizeof(float)*OW_sz, cudaMemcpyDeviceToHost);
-	cudaMemcpy(OW_d, OW_h, sizeof(float)*OW_sz, cudaMemcpyHostToDevice);
+		cudaMemcpy(OW_h, OW_d, sizeof(float)*OW_sz, cudaMemcpyDeviceToHost);
+		cudaMemcpy(OW_d, OW_h, sizeof(float)*OW_sz, cudaMemcpyHostToDevice);
 
-	cudaMemcpy(A_h, A_d, sizeof(float)*A_sz, cudaMemcpyDeviceToHost);
-	cudaMemcpy(A_d, A_h, sizeof(float)*A_sz, cudaMemcpyHostToDevice);
-    }
+		cudaMemcpy(A_h, A_d, sizeof(float)*A_sz, cudaMemcpyDeviceToHost);
+		cudaMemcpy(A_d, A_h, sizeof(float)*A_sz, cudaMemcpyHostToDevice);
+ 	}
 	printf("\n OUTPUT: %f", OUT_h[0]);
   }
 	cudaMemcpy(OW_h, OW_d, sizeof(float)*OW_sz, cudaMemcpyDeviceToHost);
@@ -209,9 +209,10 @@ int main (int argc, char *argv[])
 	cudaMemcpy(A_h, A_d, sizeof(float)*A_sz, cudaMemcpyDeviceToHost);
         cudaMemcpy(A_d, A_h, sizeof(float)*A_sz, cudaMemcpyHostToDevice);
 
+	//tests for predictions
 	for(int j = 0; j < 10; j++){
 		for (unsigned int i = 0; i < 4; i++) {
-        	         B_h[i] = tst_input_h[i+j*B_sz];
+        	        B_h[i] = tst_input_h[i+j*B_sz];
 			printf("\n Test_inputs: %f", tst_input_h[i+j*B_sz]);
 	        }
 		cudaMemcpy(B_d, B_h, sizeof(float)*B_sz, cudaMemcpyHostToDevice);
@@ -228,12 +229,9 @@ int main (int argc, char *argv[])
 	}
 	cudaMemcpy(OW_h, OW_d, sizeof(float)*OW_sz, cudaMemcpyDeviceToHost);
 	cudaMemcpy(A_h, A_d, sizeof(float)*A_sz, cudaMemcpyDeviceToHost);
-
-    cudaMemcpy(B_new_h, B_new_d, sizeof(float)*B_new_sz, cudaMemcpyDeviceToHost);
-
-    cudaMemcpy(B_h, B_d, sizeof(float)*B_sz, cudaMemcpyDeviceToHost);
-
-    cudaMemcpy(C_h, C_d, sizeof(float)*C_sz, cudaMemcpyDeviceToHost);
+	cudaMemcpy(B_new_h, B_new_d, sizeof(float)*B_new_sz, cudaMemcpyDeviceToHost);
+    	cudaMemcpy(B_h, B_d, sizeof(float)*B_sz, cudaMemcpyDeviceToHost);
+    	cudaMemcpy(C_h, C_d, sizeof(float)*C_sz, cudaMemcpyDeviceToHost);
 
     // Verify correctness -----------------------------------------------------
     printf("Verifying results..."); fflush(stdout);

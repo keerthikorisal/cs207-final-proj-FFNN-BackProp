@@ -183,7 +183,7 @@ int main (int argc, char *argv[])
 	targets_h[j] = target_h[j];
 	cudaMemcpy(B_d, B_h, sizeof(float)*B_sz, cudaMemcpyHostToDevice);
 	printf("\n Iter: %i", j);
-    for(int i = 0; i < 5000; i++) {
+    for(int i = 0; i < 1000; i++) {
 	feed_forward(matArow, matBcol, matBrow, len, OUT_len, OW_d, C_d, Csig_d, OUT_d, A_d, B_d, cuda_ret);
 
 	cudaMemcpy(C_h, C_d, sizeof(float)*C_sz, cudaMemcpyDeviceToHost);

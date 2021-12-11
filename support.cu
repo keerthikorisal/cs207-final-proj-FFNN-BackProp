@@ -9,34 +9,17 @@ void verify(float *A, float *B, float *C, float *OUT, float *B_new, unsigned int
 
   const float relativeTolerance = 1e-6;
   unsigned int count = 0;
-	//printf("\n0, %f/%f ", A[0], B[0]);
-       // printf("\n1, %f/%f ", A[1], B[1]);
-       // printf("\n2, %f/%f ", A[2], B[2]);
-       // printf("\n3, %f/%f ", A[3], B[3]);
+	
   for(int row = 0; row < m; ++row) {
     for(int col = 0; col < n; ++col) {
       float sum = 0;
       for(unsigned int i = 0; i < k; ++i) {
-	printf("\nA/B_new %f/%f ", A[row*k + i], B_new[row*k + i]);
-        //printf("\n %f ", B[i*n + col]);
 
 	sum += A[row*k + i]*B[i*n + col];
-	//printf("\nB, %f ", B[i*n + col]);
       }
       count++;
       float relativeError = (sum - C[row*n + col])/sum;
-	//printf("\n %f/%f/%f ", A[row*n + col], row, col);
-	//printf("\n %f/%f/%f ", B[row*n + col], row, col);
       printf("\n0, %f/%f ", sum, C[row*n + col]);
-	//printf("\n0, %f ", B[*n + col]);
-//	printf("\n1, %f/%f ", sum, C[1], "1");
-//	printf("\n2, %f/%f ", sum, C[2], "2");
-//	printf("\n3, %f/%f ", sum, C[3], "3");
-      //if (relativeError > relativeTolerance
-        //|| relativeError < -relativeTolerance) {
-       // printf("\nTEST FAILED %u\n\n",count);
-       // exit(1);
-     // }
     }
   }
 	printf("\n OUTPUT: %f ", OUT[0]);

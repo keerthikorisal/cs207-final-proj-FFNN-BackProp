@@ -6,7 +6,7 @@ else
 NVCC_FLAGS  = -O3 -I/usr/local/cuda/include --std=c++03
 endif
 LD_FLAGS    = -lcublas -lcudart -L/usr/local/cuda/lib64
-EXE	        = sgemm-tiled
+EXE	        = basic-ffnn
 OBJ	        = main.o support.o
 
 default: $(EXE)

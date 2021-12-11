@@ -190,7 +190,7 @@ int main (int argc, char *argv[])
     	cudaMemcpy(Csig_h, Csig_d, sizeof(float)*Csig_sz, cudaMemcpyDeviceToHost);
     	cudaMemcpy(OUT_h, OUT_d, sizeof(float)*OUT_sz, cudaMemcpyDeviceToHost);
   
-	update_weight_h[0] = (OUT_h[0] - targets_h[j]) * 0.01f;
+	update_weight_h[0] = (OUT_h[0] - targets_h[j]) * 0.05f;
 	cudaMemcpy(update_weight_d, update_weight_h, sizeof(float)*update_sz, cudaMemcpyHostToDevice);
 	
  	back_prop_output(OW_d, C_d, OW_new_d, update_weight_d, OW_t_d, cuda_ret);
